@@ -21,7 +21,7 @@ class Sensors():
         self.read_door_lasers = self.rospy.get_param("~door_laser_sensors/read",False)
         self.door_lasers_addresses = self.rospy.get_param("~door_laser_sensors/addresses",[0x29])
         self.door_lasers_names = self.rospy.get_param("~door_laser_sensors/names",["left"])
-        self.node_rate = self.rospy.get_param("~node_rate",100)
+        self.node_rate = self.rospy.get_param("~node_paramters/rate",100)
         return
 
     def initSubscribers(self):
