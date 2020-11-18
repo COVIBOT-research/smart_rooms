@@ -1,0 +1,12 @@
+<!-- Launch file to acquire the sensors in the Smart Rooms module  -->
+<launch>
+  <!-- Arguments and Parameters -->
+	<arg name ="room_id" default="room1"/>
+  <rosparam file="$(find smart_rooms_modules)/config/sensors_acquisition.yaml" command="load"/>
+
+  <!--sensor acquisition node-->
+	<node name="sensor_acquisition"	pkg="smart_rooms_modules"	type="sensor_acquisition"	output="screen">
+    <param name="room_name" type="string" value ="$(arg room_id)"/>
+  </node>
+
+ </launch>
