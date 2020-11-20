@@ -1,0 +1,1 @@
+RoomStamped[] rooms
