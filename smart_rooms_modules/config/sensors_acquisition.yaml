@@ -1,0 +1,8 @@
+node_paramters:
+  rate: 100
+magnetic_sensor:
+  read: True
+door_laser_sensors:
+  read: False
+  addresses: [0x29]
+  names: [left]
