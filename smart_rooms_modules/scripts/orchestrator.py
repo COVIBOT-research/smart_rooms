@@ -3,6 +3,7 @@ from datetime import datetime
 import rospy
 from std_msgs.msg import Bool, String, Int16
 from geometry_msgs.msg import PointStamped
+from smart_rooms_msgs.msg import RoomStamped, RoomStampedList 
 
 class Orchestrator():
 	def __init__(self):
@@ -73,13 +74,14 @@ class Orchestrator():
 					if (self.magnetic_sensor_data[self.active_rooms[i]] == 1):
 						if not (self.active_rooms[i] in self.sent_request):
 							''' Calculate time between disinfection schedules and current time'''
-							#print("NO ESTA ---------------------------------")
+							
 							now = datetime.now()
 							current_date = now.strftime("%Y-%m-%d")
 							cleaning_times = []
 							for j in range(len(self.rooms_list[self.active_rooms[i]]["schedules"]["cleaning"])):
 								cleaning_time = datetime.strptime(current_date + " " + self.rooms_list[self.active_rooms[i]]["schedules"]["cleaning"][j],"%Y-%m-%d %H:%M:%S")
 								time = cleaning_time - now
+								#print(time.days)
 								if time.days == 0:
 									time_minutes = time.seconds/60
 									p = self.magnetic_sensor_data[self.active_rooms[i]]*(self.w_time*time_minutes + self.w_np*self.people_number[self.active_rooms[i]])
