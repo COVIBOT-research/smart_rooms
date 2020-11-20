@@ -1,0 +1,45 @@
+rooms_list: 
+    room1:
+        name: room1
+        poses_file: room1.csv 
+        active: 1
+        schedules:
+            class: [8.5, 10, 13, 16]
+            cleaning: ["9:00:00", "12:00:00", "15:00:00", "18:00:00", "23:59:00"]
+    room2:
+        name: room2
+        poses_file: room2.csv
+        active: 1
+        schedules:
+            class: [8.5, 10, 13, 16]
+            cleaning: ["9:00:00", "12:00:00", "15:00:00", "18:00:00", "23:59:00"]
+    room3:
+        name: room3
+        poses_file: room3.csv 
+        active: 1
+        schedules:
+            class: [8.5, 10, 13, 16]
+            cleaning: ["9:00:00", "12:00:00", "15:00:00", "18:00:00", "23:59:00"]
+    room4:
+        name: room4
+        poses_file: room4.csv 
+        active: 0
+        schedules:
+            class: [8.5, 10, 13, 16]
+            cleaning: ["9:00:00", "12:00:00", "15:00:00", "18:00:00", "23:59:00"]
+    room5: 
+        name: room5
+        poses_file: room5.csv
+        active: 0
+        schedules:
+            class: [8.5, 10, 13, 16]
+            cleaning: ["9:00:00", "12:00:00", "15:00:00", "18:00:00", "23:59:00"]
+    room6: 
+        name: room6
+
+        active: 1
+        schedules:
+            class: [8.5, 10, 13, 16]
+            cleaning: ["9:00:00", "12:00:00", "15:00:00", "18:00:00", "23:59:00"]
+
+
