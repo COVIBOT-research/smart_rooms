@@ -6,6 +6,7 @@ import actionlib
 from move_base_msgs.msg import MoveBaseGoal, MoveBaseAction
 from actionlib_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseArray, Pose
+from std_msgs.msg import String
 from std_srvs.srv import EmptyResponse, Empty
 from threading import Lock
 
@@ -23,7 +24,8 @@ class RobotManager():
         self.main()
 
     def initParameters(self):
-        self.poses_topic = rospy.get_param("~goals_topic", "/current_goals")
+        self.goals_topic = rospy.get_param("~goals_topic", "/current_goals")
+        self.goals_status_topic = rospy.get_param("~goals_status_topic", "/goals_status")
         self.manager_rate = rospy.get_param("~rate", 50)
         self.wait_time = rospy.get_param("~wait_time", 5)
         self.retry_max = rospy.get_param("~maximum_retry", 3)
@@ -32,10 +34,11 @@ class RobotManager():
         return
 
     def initSubscribers(self):
-        self.sub_request = rospy.Subscriber(self.poses_topic, PoseArray, self.callbackPoses)
+        self.sub_request = rospy.Subscriber(self.goals_topic, PoseArray, self.callbackPoses)
         return
 
     def initPublishers(self):
+        self.pub_status = rospy.Publisher(self.goals_status_topic, String, queue_size = 10)
         pass
 
     def initServiceClients(self):
@@ -103,8 +106,9 @@ class RobotManager():
         return
 
     def callbackActive(self):
-		rospy.loginfo("[%s] The goal with ID %d is now being processed by the Action Server...", self.name, self.goal_id)
-		return
+        rospy.loginfo("[%s] The goal with ID %d is now being processed by the Action Server...", self.name, self.goal_id)
+        self.pub_status.publish("active")
+        return
 
     def callbackFeedback(self, feedback):
         return
@@ -112,6 +116,7 @@ class RobotManager():
     def callbackDone(self, status, result):
         if status == 2:
             rospy.loginfo("[%s] The goal with ID %d received a cancel request after it started executing", self.name, self.goal_id)
+            self.pub_status.publish("cancelled")
         elif status == 3:
             rospy.loginfo("[%s] Reached Goal %d successfully", self.name, self.goal_id)
             self.goal_id += 1
@@ -119,6 +124,7 @@ class RobotManager():
             if self.goal_id > self.goals_number - 1:
                 rospy.loginfo("[%s] Reached final goal", self.name)
                 self.final_goal_reached = True
+                self.pub_status.publish("finished")
                 return
         elif status == 4:
             rospy.loginfo("[%s] The goal with ID %d was aborted by the Action Server", self.name, self.goal_id)
@@ -140,6 +146,7 @@ class RobotManager():
         if self.wait and self.retry_conn < self.retry_max:
             rospy.loginfo("[%s] Configuration OK", self.name)
             rospy.loginfo("[%s] Connected to move base server", self.name)
+            self.pub_status.publish("prepared")
             while not rospy.is_shutdown():
                 if not self.final_goal_reached and self.change_goals:
                     if not self.goal_published:

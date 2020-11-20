@@ -3,13 +3,15 @@ import rospy
 import numpy as np
 import actionlib
 
-from move_base_msgs.msg import MoveBaseGoal, MoveBaseAction
-from actionlib_msgs.msg import GoalStatus
+from geometry_msgs.msg import PoseArray, Pose
+from std_msgs.msg import String
 from smart_rooms_msgs.msg import RoomStamped, RoomStampedList
 from std_srvs.srv import EmptyResponse, Empty
 from threading import Lock
 
-class RobotManager():
+from tf.transformations import quaternion_from_euler as qfe
+
+class RequestManager():
     def __init__(self, name):
         self.name = name
         rospy.init_node(name, anonymous = True)
@@ -18,43 +20,40 @@ class RobotManager():
         self.initSubscribers()
         self.initPublishers()
         self.initServiceClients()
-        self.initActionClients()
         self.initVariables()
         self.main()
 
     def initParameters(self):
-        self.requestTopic = rospy.get_param("~disinfection/request_topic", "/disinfection/request")
-        self.managerRate = rospy.get_param("~rate", 50)
-        self.wait_time = rospy.get_param("~wait_time", 5)
-        self.retry_max = rospy.get_param("~maximum_retry", 3)
+        self.request_topic = rospy.get_param("~request_topic", "/disinfection/request")
+        self.goals_topic = rospy.get_param("~goals_topic", "/current_goals")
+        self.goals_status_topic = rospy.get_param("~goals_status_topic", "/goals_status")
+        self.parent_path = rospy.get_param("~parent_path", "~/catkin_ws/src/smart_rooms_disinfection/config/")
+        self.rooms_list = rospy.get_param("~rooms_list", [])
+        self.trajectories = rospy.get_param("~trajectories", [])
+        self.manager_rate = rospy.get_param("~rate", 50)
         self.updateParamsService = self.name + rospy.get_param("~update_params_service", "/update_parameters")
         self.param_lock = Lock()
         return
 
     def initSubscribers(self):
-        self.sub_request = rospy.Subscriber(self.requestTopic, RoomStampedList, self.callbackRequest)
+        self.sub_request = rospy.Subscriber(self.request_topic, RoomStampedList, self.callbackRequest)
+        self.sub_goals_status = rospy.Subscriber(self.goals_status_topic, String, self.callbackGoalStatus)
         return
 
     def initPublishers(self):
+        self.pub_goals = rospy.Publisher(self.goals_topic, PoseArray, queue_size = 10)
         pass
 
     def initServiceClients(self):
         self.service = rospy.Service(self.updateParamsService, Empty, self.callbackUpdateParams)
         return
 
-    def initActionClients(self):
-        self.action_client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
-        return
-
     def initVariables(self):
-        self.retry_conn = 0
-        self.change_request = True
-        self.rate = rospy.Rate(self.managerRate)
-        return
-
-    def callbackRequest(self, msg):
-        self.requests_cue = msg
-        self.change_request = True
+        self.last_request = RoomStamped()
+        self.robot_is_prepared = False
+        self.robot_is_disinfecting = False
+        self.request_cue = False
+        self.rate = rospy.Rate(self.manager_rate)
         return
 
     def callbackUpdateParams(self, req):
@@ -63,27 +62,113 @@ class RobotManager():
             rospy.loginfo("[%s] Parameter update after request", self.name)
         return EmptyResponse()
 
-    def main(self):
-        self.wait = self.action_client.wait_for_server(rospy.Duration(self.wait_time))
-        if self.wait and self.retry_conn < self.retry_max:
-            rospy.loginfo("[%s] Configuration OK", self.name)
-            rospy.loginfo("[%s] Connected to move base server", self.name)
-            while not rospy.is_shutdown():
+    def callbackRequest(self, msg):
+        self.requests = msg
+        self.request_cue = True
+        self.request_id = 0
+        return
 
-                self.rate.sleep()
+    def callbackGoalStatus(self, msg):
+        if msd.data == "prepared":
+            self.robot_is_prepared = True
+        elif msg.data == "active":
+            self.robot_is_disinfecting = True
+        elif msg.data == "finished":
+            self.robot_is_disinfecting = False
+            self.request_id += 1
         else:
-            if self.retry_conn < 3:
-                rospy.logwarn("[%s] Action server did not respond after %d seconds", self.name, self.wait_time)
-                rospy.logwarn("[%s] Retrying to reach connection ...", self.name)
-                self.retry_conn += 1
-                self.main()
+            pass
+        return
+
+    def read_file(self, file):
+        try:
+            with open(file) as csv_file:
+                csv_reader = csv.reader(csv_file, delimiter=',')
+                for line_counter, row in enumerate(csv_reader):
+                    if line_counter > 0:
+                        self.frame_id = row[0] #We just need one
+                        row = row[1:3]
+                        row_i = np.reshape(map(float, np.array(row)), (1, 2))
+                        if line_counter == 1:
+                            self.poses = row_i
+                        else:
+                            self.poses = np.concatenate((self.poses, row_i))
+                self.poses_number = self.poses.size
+            self.read_flag = True
+        except Exception as e:
+            print(e)
+            self.read_flag = False
+        return
+
+    def fix_poses(self, trajectory):
+        trajectories_info = self.room_info.get(self.room_id, {})
+        trajectory_goals = trajectories_info.get(trajectory, [])
+        self.final_poses = []
+        for i in range(len(trajectory_goals)):
+            pose = []
+            if i < len(trajectory_goals) - 1:
+                idx_sig = trajectory_goals[i+1]
             else:
-                rospy.logerr("[%s] Unable to reach connection ...", self.name)
+                idx_sig = trajectory_goals[i-1]
+            idx = trajectory_goals[i]
+            x = self.poses[idx][0]
+            y = self.poses[idx][1]
+            x_sig = self.poses[idx_sig][0]
+            y_sig = self.poses[idx_sig][1]
+            theta = np.atan2(y_sig - y, x_sig - x)
+            quat = qfe(0, 0, theta) #roll, pitch, yaw
+            pose = [x, y, quat[2], quat[3]]
+            self.final_poses.append(pose)
+        return
+
+    def makeMsgGoalArray(self):
+        self.msg_pose_array = PoseArray()
+        self.msg_pose_array.header.frame_id = self.frame_id
+        self.msg_pose_array.header.stamp = rospy.Time.now()
+        array = []
+        for pose in self.final_poses:
+            msg_pose = Pose()
+            msg_pose.poisition.x = pose[0]
+            msg_pose.poisition.y = pose[1]
+            msg_pose.orientation.x = 0
+            msg_pose.orientation.y = 0
+            msg_pose.orientation.z = pose[2]
+            msg_pose.orientation.w = pose[3]
+            array.append(msg_pose)
+        self.msg_pose_array.poses = array
+        return
+
+    def getCurrentRequest(self):
+        self.current_request = self.request[self.request_id]
+        if self.current_request.header.frame_id != self.last_request.header.frame_id:
+            #Process it
+            self.room_id = self.current_request.header.frame_id
+            self.room_info = self.rooms_list.get(self.room_id, {})
+            self.poses_file = self.room_info["poses_file"]
+            #We read the .csv file according to the parameters (e.g. room1.csv)
+            self.read_file(self.parent_path+self.poses_file)
+            #We fix the poses, estimating quaternions and the poses to be used
+            self.fix_poses(self.current_request.trajectory)
+            self.makeMsgGoalArray()
+            self.pub_goals.publish(self.msg_pose_array)
+        else:
+            #Ignore it, because its the sameone
+            pass
+        return
+
+    def main(self):
+        rospy.loginfo("[%s] Configuration OK", self.name)
+        while not rospy.is_shutdown():
+            if self.request_cue and len(self.requests) > 0:
+                if not self.robot_is_disinfecting:
+                    self.getCurrentRequest()
+            self.rate.sleep()
+
         return
 
 if __name__ == '__main__':
     try:
-        sw = RobotManager('robot_manager')
+        sw = RequestManager('request_manager')
     except Exception as e:
         print("Something bad happened: ")
         print(e)

@@ -1,0 +1,25 @@
+trajectories:
+  room1:
+    spiral: [1, 2, 3, 4, 5]
+    zigzag: [1, 2, 3, 4, 5]
+    square: [1, 2, 3, 4]
+  room2:
+    spiral: [1, 2, 3, 4, 5]
+    zigzag: [1, 2, 3, 4, 5]
+    square: [1, 2, 3, 4]
+  room3:
+    spiral: [1, 2, 3, 4, 5]
+    zigzag: [1, 2, 3, 4, 5]
+    square: [1, 2, 3, 4]
+  room4:
+    spiral: [1, 2, 3, 4, 5]
+    zigzag: [1, 2, 3, 4, 5]
+    square: [1, 2, 3, 4]
+  room5:
+    spiral: [1, 2, 3, 4, 5]
+    zigzag: [1, 2, 3, 4, 5]
+    square: [1, 2, 3, 4]
+  room6:
+    spiral: [1, 2, 3, 4, 5]
+    zigzag: [1, 2, 3, 4, 5]
+    square: [1, 2, 3, 4]
