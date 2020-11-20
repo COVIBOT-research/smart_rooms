@@ -1,3 +1,8 @@
 node_paramters:
   rate: 100
-
+trial_parameters:
+  trajectory: spiral
+  #trajectory: zigzag
+  #trajectory: square
+  disinfection_method: uv
+  #disinfection_method: spray
