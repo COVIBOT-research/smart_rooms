@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<launch>
+  <node name="robot_manager" pkg="smart_rooms_disinfection" type="robot_manager.py" output="screen">
+    <rosparam file="$(find smart_rooms_disinfection)/config/robot_manager.yaml" command="load"/>
+  </node>
+
+  <node name="request_manager" pkg="smart_rooms_disinfection" type="request_manager.py" output="screen">
+    <rosparam file="$(find smart_rooms_disinfection)/config/request_manager.yaml" command="load"/>
+    <rosparam file="$(find smart_rooms_modules)/config/rooms.yaml" command="load"/>
+    <rosparam file="$(find smart_rooms_disinfection)/config/trajectories.yaml" command="load"/>
+  </node>
+</launch>
