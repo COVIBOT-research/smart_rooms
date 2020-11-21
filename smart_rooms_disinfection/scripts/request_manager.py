@@ -2,7 +2,8 @@
 import rospy
 import numpy as np
 import actionlib
-
+import csv
+from sys import stdin
 from geometry_msgs.msg import PoseArray, Pose
 from std_msgs.msg import String
 from smart_rooms_msgs.msg import RoomStamped, RoomStampedList
@@ -27,8 +28,8 @@ class RequestManager():
         self.request_topic = rospy.get_param("~request_topic", "/disinfection/request")
         self.goals_topic = rospy.get_param("~goals_topic", "/current_goals")
         self.goals_status_topic = rospy.get_param("~goals_status_topic", "/goals_status")
-        self.parent_path = rospy.get_param("~parent_path", "~/catkin_ws/src/smart_rooms_disinfection/config/")
-        self.rooms_list = rospy.get_param("~rooms_list", [])
+        self.parent_path = rospy.get_param("~parent_path", "/home/walker/catkin_ws/src/smart_rooms/smart_rooms_disinfection/config/")
+        self.rooms_list = rospy.get_param("~rooms_list", {})
         self.trajectories = rospy.get_param("~trajectories", [])
         self.manager_rate = rospy.get_param("~rate", 50)
         self.updateParamsService = self.name + rospy.get_param("~update_params_service", "/update_parameters")
@@ -63,17 +64,20 @@ class RequestManager():
         return EmptyResponse()
 
     def callbackRequest(self, msg):
-        self.requests = msg
+        self.requests = msg.rooms
         self.request_cue = True
         self.request_id = 0
         return
 
     def callbackGoalStatus(self, msg):
-        if msd.data == "prepared":
+        if msg.data == "prepared":
+            rospy.loginfo("[%s] Received confirmation: Robot is prepared", self.name)
             self.robot_is_prepared = True
         elif msg.data == "active":
             self.robot_is_disinfecting = True
         elif msg.data == "finished":
+            rospy.loginfo("[%s] Received confirmation: Robot finished disinfection", self.name)
+            self.requests = self.requests[1::]
             self.robot_is_disinfecting = False
             self.request_id += 1
         else:
@@ -101,23 +105,26 @@ class RequestManager():
         return
 
     def fix_poses(self, trajectory):
-        trajectories_info = self.room_info.get(self.room_id, {})
+        trajectories_info = self.trajectories.get(self.room_id, {})
         trajectory_goals = trajectories_info.get(trajectory, [])
         self.final_poses = []
+        print(len(self.poses[0]))
+        print(len(self.poses))
         for i in range(len(trajectory_goals)):
             pose = []
             if i < len(trajectory_goals) - 1:
-                idx_sig = trajectory_goals[i+1]
+                idx_sig = trajectory_goals[i+1]-1
             else:
-                idx_sig = trajectory_goals[i-1]
-            idx = trajectory_goals[i]
+                idx_sig = trajectory_goals[i-1]-1
+            idx = trajectory_goals[i]-1
             x = self.poses[idx][0]
             y = self.poses[idx][1]
             x_sig = self.poses[idx_sig][0]
             y_sig = self.poses[idx_sig][1]
-            theta = np.atan2(y_sig - y, x_sig - x)
+            theta = np.arctan2(y_sig - y, x_sig - x)
             quat = qfe(0, 0, theta) #roll, pitch, yaw
-            pose = [x, y, quat[2], quat[3]]
+            pose = [round(x, 2), round(y, 2), round(quat[2], 2), round(quat[3], 2)]
+            print(pose)
             self.final_poses.append(pose)
         return
 
@@ -128,8 +135,8 @@ class RequestManager():
         array = []
         for pose in self.final_poses:
             msg_pose = Pose()
-            msg_pose.poisition.x = pose[0]
-            msg_pose.poisition.y = pose[1]
+            msg_pose.position.x = pose[0]
+            msg_pose.position.y = pose[1]
             msg_pose.orientation.x = 0
             msg_pose.orientation.y = 0
             msg_pose.orientation.z = pose[2]
@@ -139,7 +146,8 @@ class RequestManager():
         return
 
     def getCurrentRequest(self):
-        self.current_request = self.request[self.request_id]
+        self.current_request = self.requests[self.request_id]
+        print(self.current_request)
         if self.current_request.header.frame_id != self.last_request.header.frame_id:
             #Process it
             self.room_id = self.current_request.header.frame_id
@@ -167,8 +175,8 @@ class RequestManager():
         return
 
 if __name__ == '__main__':
-    try:
-        sw = RequestManager('request_manager')
-    except Exception as e:
-        print("Something bad happened: ")
-        print(e)
+    #try:
+    sw = RequestManager('request_manager')
+    #except Exception as e:
+    #    print("Something bad happened: ")
+    #    print(e)
