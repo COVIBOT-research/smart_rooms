@@ -43,6 +43,13 @@ class RequestManager():
 
     def initPublishers(self):
         self.pub_goals = rospy.Publisher(self.goals_topic, PoseArray, queue_size = 10)
+        self.pub_rooms = {}
+        for i in range(len(self.rooms_list)):
+            key_name = "room" + str(i+1)
+            if self.rooms_list[key_name]["active"]:
+                topic_name = "/" + self.rooms_list[key_name]["name"] + "/status"
+                self.pub_ = rospy.Publisher(topic_name, RoomStamped, queue_size=10)
+                self.pub_rooms[key_name] = self.pub_
         pass
 
     def initServiceClients(self):
@@ -75,11 +82,13 @@ class RequestManager():
             self.robot_is_prepared = True
         elif msg.data == "active":
             self.robot_is_disinfecting = True
+            self.updateRoomStatus(self.room_id, 1)
         elif msg.data == "finished":
             rospy.loginfo("[%s] Received confirmation: Robot finished disinfection", self.name)
             self.requests = self.requests[1::]
-            self.robot_is_disinfecting = False
             self.request_id += 1
+            self.robot_is_disinfecting = False
+            self.updateRoomStatus(self.room_id, 2)
         else:
             pass
         return
@@ -108,8 +117,6 @@ class RequestManager():
         trajectories_info = self.trajectories.get(self.room_id, {})
         trajectory_goals = trajectories_info.get(trajectory, [])
         self.final_poses = []
-        print(len(self.poses[0]))
-        print(len(self.poses))
         for i in range(len(trajectory_goals)):
             pose = []
             if i < len(trajectory_goals) - 1:
@@ -124,7 +131,6 @@ class RequestManager():
             theta = np.arctan2(y_sig - y, x_sig - x)
             quat = qfe(0, 0, theta) #roll, pitch, yaw
             pose = [round(x, 2), round(y, 2), round(quat[2], 2), round(quat[3], 2)]
-            print(pose)
             self.final_poses.append(pose)
         return
 
@@ -145,9 +151,20 @@ class RequestManager():
         self.msg_pose_array.poses = array
         return
 
+    def updateRoomStatus(self, room, status):
+        #0: Contaminated, 1: Disinfecting, 2: Disinfected, 3: Unknown
+        pub = self.pub_rooms.get(room, "")
+        msg = RoomStamped()
+        msg.header.frame_id = room
+        msg.header.stamp = rospy.Time.now()
+        msg.trajectory = self.current_request.trajectory
+        msg.status = status
+        if not pub == "":
+            pub.publish(msg)
+        return
+
     def getCurrentRequest(self):
         self.current_request = self.requests[self.request_id]
-        print(self.current_request)
         if self.current_request.header.frame_id != self.last_request.header.frame_id:
             #Process it
             self.room_id = self.current_request.header.frame_id
@@ -159,6 +176,7 @@ class RequestManager():
             self.fix_poses(self.current_request.trajectory)
             self.makeMsgGoalArray()
             self.pub_goals.publish(self.msg_pose_array)
+            self.last_request = self.current_request
         else:
             #Ignore it, because its the sameone
             pass
@@ -168,8 +186,8 @@ class RequestManager():
         rospy.loginfo("[%s] Configuration OK", self.name)
         while not rospy.is_shutdown():
             if self.request_cue and len(self.requests) > 0:
-                if not self.robot_is_disinfecting:
-                    self.getCurrentRequest()
+                #if not self.robot_is_disinfecting:
+                self.getCurrentRequest()
             self.rate.sleep()
 
         return

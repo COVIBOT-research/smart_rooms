@@ -3,6 +3,7 @@ import rospy
 import numpy as np
 import actionlib
 
+from smart_rooms_msgs.msg import RoomStamped
 from visualization_msgs.msg import MarkerArray, Marker
 from nav_msgs.msg import Odometry
 from move_base_msgs.msg import MoveBaseGoal, MoveBaseAction
@@ -10,6 +11,7 @@ from actionlib_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseArray, Pose
 from std_msgs.msg import String
 from std_srvs.srv import EmptyResponse, Empty
+
 from threading import Lock
 
 class RobotManager():
@@ -28,8 +30,7 @@ class RobotManager():
     def initParameters(self):
         self.goals_topic = rospy.get_param("~goals_topic", "/current_goals")
         self.goals_status_topic = rospy.get_param("~goals_status_topic", "/goals_status")
-        self.zone_topic = rospy.get_param("~zone_topic", "/disinfection_zone")
-        self.rooms_list = rospy.get_param("~rooms_list", {})
+        self.zone_topic = rospy.get_param("~zone_topic", "/disinfection/zone")
         self.manager_rate = rospy.get_param("~rate", 50)
         self.wait_time = rospy.get_param("~wait_time", 5)
         self.retry_max = rospy.get_param("~maximum_retry", 3)
@@ -44,13 +45,6 @@ class RobotManager():
     def initPublishers(self):
         self.pub_status = rospy.Publisher(self.goals_status_topic, String, queue_size = 10)
         self.pub_zone = rospy.Publisher(self.zone_topic, MarkerArray, queue_size = 10)
-        self.pub_rooms = {}
-        for i in range(len(self.rooms_list)):
-			key_name = "room" + str(i+1)
-			if self.rooms_list[key_name]["active"]:
-				topic_name = "/" + self.rooms_list[key_name]["name"] + "/status"
-				self.pub_ = rospy.Publisher(topic_name, String, queue_size)
-
         return
 
     def initServiceClients(self):
@@ -110,7 +104,6 @@ class RobotManager():
         marker.color.b = 1
         if self.count % 10 == 0:
             self.marker_array.append(marker)
-            print(len(self.marker_array))
             self.pub_zone.publish(self.marker_array)
         return
 
@@ -158,13 +151,16 @@ class RobotManager():
         #print(feedback)
         self.x_bot = feedback.base_position.pose.position.x
         self.y_bot = feedback.base_position.pose.position.y
-        if self.goal_id > 0 and not self.final_goal_reached:
-            self.count += 1
-            self.drawZone()
-        d = np.sqrt(np.power(self.x_goal - self.x_bot, 2) + np.power(self.y_goal - self.y_bot, 2))
-        if d < 0.5 and not self.final_goal_reached:
-            rospy.loginfo("[%s] Goal with ID %s overriden", self.name, self.goal_id)
-            self.callbackDone(3, "")
+        if not self.final_goal_reached:
+            if self.change_goals:
+                self.pub_status.publish("active")
+            if self.goal_id > 0:
+                self.count += 1
+                self.drawZone()
+            d = np.sqrt(np.power(self.x_goal - self.x_bot, 2) + np.power(self.y_goal - self.y_bot, 2))
+            if d < 0.5:
+                rospy.loginfo("[%s] Goal with ID %s overriden", self.name, self.goal_id)
+                self.callbackDone(3, "")
         return
 
     def callbackDone(self, status, result):
@@ -179,6 +175,7 @@ class RobotManager():
                 rospy.loginfo("[%s] Reached final goal", self.name)
                 self.clearZone()
                 self.final_goal_reached = True
+                self.change_goals = False
                 self.pub_status.publish("finished")
                 return
         elif status == 4:
