@@ -1,0 +1,6 @@
+goals_topic: "/current_goals"
+goals_status_topic: "/goals_status"
+rate: 50
+wait_time: 5
+maximum_retry: 3
+update_params_service: "/update_parameters"

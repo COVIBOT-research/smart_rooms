@@ -1,0 +1,6 @@
+request_topic: "/disinfection/request"
+goals_topic: "/current_goals"
+goals_status_topic: "/goals_status"
+parent_path:: "~/catkin_ws/src/smart_rooms_disinfection/config/"
+rate: 50
+update_params_service: "/update_parameters"
