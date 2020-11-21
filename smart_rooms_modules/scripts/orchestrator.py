@@ -17,8 +17,8 @@ class Orchestrator():
 		self.mainControl()
 
 	def initParameters(self):
-		self.class_hours = rospy.get_param("~schedules/class")
-		self.cleaning_hours = rospy.get_param("~schedules/cleaning")
+		#self.class_hours = rospy.get_param("~schedules/class")
+		#self.cleaning_hours = rospy.get_param("~schedules/cleaning")
 		self.node_rate = int(rospy.get_param("~node_paramters/rate","100"))
 		self.trajectory = rospy.get_param("~trial_parameters/trajectory","spiral")
 		self.disinfection_method = rospy.get_param("~trial_parameters/disinfection_method","uv")

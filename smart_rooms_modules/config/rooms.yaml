@@ -4,7 +4,7 @@ rooms_list:
         poses_file: room1.csv
         active: 1
         schedules:
-            class: [8.5, 10, 13, 16]
+            class: [8, 10, 13, 16]
             cleaning: ["9:00:00", "12:00:00", "15:00:00", "18:00:00"]
     room2:
         name: room2
